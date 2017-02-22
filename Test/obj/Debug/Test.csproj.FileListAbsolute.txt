@@ -1,8 +1,0 @@
-D:\yishuihan\SActor\Test\bin\Debug\Test.exe.config
-D:\yishuihan\SActor\Test\bin\Debug\Test.exe
-D:\yishuihan\SActor\Test\bin\Debug\Test.pdb
-D:\yishuihan\SActor\Test\bin\Debug\SActor.dll
-D:\yishuihan\SActor\Test\bin\Debug\SActor.pdb
-D:\yishuihan\SActor\Test\obj\Debug\Test.csprojResolveAssemblyReference.cache
-D:\yishuihan\SActor\Test\obj\Debug\Test.exe
-D:\yishuihan\SActor\Test\obj\Debug\Test.pdb
