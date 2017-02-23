@@ -14,7 +14,7 @@ namespace SActor
             SActActor act;
             uint session;
 
-            public TimerEx(int ms,SActActor act,uint session)
+            public TimerEx(uint ms,SActActor act,uint session)
             {
                 this.act = act;
                 this.session = session;
@@ -29,7 +29,7 @@ namespace SActor
             }
         }
 
-        public static void TimeOut(int ms,uint session, SActActor act)
+        public static void TimeOut(uint ms,uint session, SActActor act)
         {
             new TimerEx(ms, act,session);
         }

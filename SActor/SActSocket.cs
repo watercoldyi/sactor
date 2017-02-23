@@ -43,7 +43,6 @@ namespace SActor
         bool _hasClose;
         uint _recvSize = 4096;
         SActActor _act;
-        WBuffer _currentWBuf;
 
         private SActSocket()
         {

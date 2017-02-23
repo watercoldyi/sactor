@@ -13,13 +13,16 @@ namespace SActor
     public abstract class SActActor
     {
         protected delegate void SActMessageHandler(SActMessage msg);
+        public delegate void Response(bool ok,object d);
 
         bool _exit;
         Dictionary<int, SActMessageHandler> _handlers = new Dictionary<int, SActMessageHandler>();
         uint _session;
-        Dictionary<uint, Action<bool,object>> _waits = new Dictionary<uint, Action<bool,object>>();
         Dictionary<uint, Action> _timer = new Dictionary<uint, Action>();
-
+        Dictionary<uint, Task> _call = new Dictionary<uint, Task>();
+        Queue<Action> _task = new Queue<Action>();
+        object _callResult;
+        bool _callOK;
 
         public SActActor()
         {
@@ -52,11 +55,21 @@ namespace SActor
                 try
                 {
                     _handlers[msg.Port](msg);
+                    DispatchTask();
                 }
                 catch (Exception e)
                 {
                     Log(e.Message + e.StackTrace);
                 }
+            }
+        }
+
+        void DispatchTask()
+        {
+            while (_task.Count > 0)
+            {
+                Action t = _task.Dequeue();
+                t();
             }
         }
 
@@ -73,18 +86,29 @@ namespace SActor
             }
         }
 
+        protected void Fork(Action task)
+        {
+            _task.Enqueue(task);
+        }
+
+        protected Task Sleep(uint ms)
+        {
+            return TimeOut(ms,()=>{});
+        }
+
         protected void Log(string s)
         {
             SActor.Send(this,SActor._logger,(int)SActMessageType.Message,0,s);
         }
 
 
-        protected void TimeOut(int ms, Action cb)
+        protected Task TimeOut(uint ms, Action cb)
         {
             uint session = Session();
-            _timer[session] = cb;
+            Task t = new Task(cb);
+            _call[session] = t;
             SActTimer.TimeOut(ms, session, this);
-
+            return t;
         }
 
         protected void Exit()
@@ -98,12 +122,20 @@ namespace SActor
             SActor.Send(this, target, (int)SActMessageType.Message, 0, p);
         }
 
-        protected void Call(SActActor target,Action<bool,object> cb,params object[] p)
+        protected Task<T> Call<T>(SActActor target, params object[] p)
         {
-            Debug.Assert(cb != null);
             uint session = Session();
-            _waits.Add(session, cb);
+            Task<T> t = new Task<T>(() =>
+            {
+                if (_callOK)
+                {
+                    return (T)_callResult;
+                }
+                throw new SActException("call fail");
+            });
+            _call.Add(session, t);
             SActor.Send(this, target, (int)SActMessageType.Request, session, p);
+            return t;
         }
 
         protected int GetMessageCount()
@@ -133,9 +165,14 @@ namespace SActor
             {
                 uint session = msg.Session;
                 SActActor target = msg.Source;
-                Action<object> reply = a =>
+                Response reply = (ok,a) =>
                 {
-                    SActor.Send(this, target, (int)SActMessageType.Response, session, a);
+                    if(ok){
+                        SActor.Send(this, target, (int)SActMessageType.Response, session, a);
+                    }
+                    else{
+                         SActor.Send(this, target, (int)SActMessageType.Error, session, null);
+                    }
 
                 };
                 object[] p = new object[ps.Length];
@@ -175,15 +212,17 @@ namespace SActor
 
         private void ResponseHandler(SActMessage m)
         {
-            if (_waits.ContainsKey(m.Session))
+            if (_call.ContainsKey(m.Session))
             {
-                Action<bool, object> func = _waits[m.Session];
-                _waits.Remove(m.Session);
-                func(true,m.Data);
+                var t = _call[m.Session];
+                _call.Remove(m.Session);
+                _callOK = true;
+                _callResult = m.Data;
+                t.RunSynchronously();
             }
             else
             {
-                throw new SActException(string.Format("invalid session {0},{1} to {2}",m.Session,m.Source.GetType().Name,this.GetType().Name));
+               throw new SActException(string.Format("invalid session {0},{1} to {2}",m.Session,m.Source.GetType().Name,this.GetType().Name));
             }
         }
 
@@ -194,11 +233,13 @@ namespace SActor
 
         private void ErrorHandler(SActMessage m)
         {
-            if (_waits.ContainsKey(m.Session))
+            if (_call.ContainsKey(m.Session))
             {
-                Action<bool, object> func = _waits[m.Session];
-                _waits.Remove(m.Session);
-                func(false, null);
+                var t = _call[m.Session];
+                _call.Remove(m.Session);
+                _callOK = false;
+                _callResult = null;
+                t.RunSynchronously();
             }
             else
             {
@@ -208,9 +249,9 @@ namespace SActor
 
         private void TimerHandler(SActMessage m)
         {
-            Action func = _timer[m.Session];
+            Task t = _call[m.Session];
             _timer.Remove(m.Session);
-            func();
+            t.RunSynchronously();
         }
 
         private void InitHandler(SActMessage m)

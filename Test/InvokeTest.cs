@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Test
@@ -12,23 +13,34 @@ namespace Test
 
         protected override void Init(object param)
         {
-            
         }
 
-        public void Add(Action<object> reply,int a, int b)
+        public void Add(Response reply,int a, int b)
         {
-            reply(a + b);
+            reply(true,a+b);
+        }
+
+        public void Say()
+        {
+            Console.WriteLine("Hi my is Adder");
         }
     }
     class InvokeTest:SActor.SActActor
     {
 
-        protected override void Init(object param)
+        protected async override void Init(object param)
         {
-            SActor.SActActor add = SActor.SActor.Launch<Adder>();
-            Call(add, (ok, r) => {
-                Log("10+10="+r);
-            }, "Add", 10, 10);
+            try
+            {
+                SActor.SActActor add = SActor.SActor.Launch<Adder>();
+                object r = await Call<object>(add, "Add", 10, 10);
+                Log("10+10=" + r);
+                Send(add, "Say");
+            }
+            catch (Exception e)
+            {
+                Log(e.Message);
+            }
         }
     }
 }
