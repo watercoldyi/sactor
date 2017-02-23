@@ -44,7 +44,9 @@
     <Compile Include="InvokeTest.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SleepTest.cs" />
     <Compile Include="SocketTest.cs" />
+    <Compile Include="TimerTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
