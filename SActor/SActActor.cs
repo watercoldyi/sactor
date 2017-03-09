@@ -13,7 +13,7 @@ namespace SActor
     public abstract class SActActor
     {
         protected delegate void SActMessageHandler(SActMessage msg);
-        public delegate void Response(bool ok,object d);
+        public delegate void Response(bool ok, object d);
 
         bool _exit;
         Dictionary<int, SActMessageHandler> _handlers = new Dictionary<int, SActMessageHandler>();
@@ -39,7 +39,7 @@ namespace SActor
 
         }
 
-        internal MessageBox MsgBox{ get; private set; }
+        internal MessageBox MsgBox { get; private set; }
 
         protected abstract void Init(object param);
 
@@ -93,12 +93,17 @@ namespace SActor
 
         protected Task Sleep(uint ms)
         {
-            return TimeOut(ms,()=>{});
+            return TimeOut(ms, () => { });
         }
 
         protected void Log(string s)
         {
-            SActor.Send(this,SActor._logger,(int)SActMessageType.Message,0,s);
+            SActor.Send(this, SActor._logger, (int)SActMessageType.Message, 0, s);
+        }
+
+        protected void Log(Exception e)
+        {
+            Log(string.Format("{0}{1}", e.Message, e.StackTrace));
         }
 
 
@@ -159,19 +164,21 @@ namespace SActor
 
         private void CommandHandler(SActMessage msg)
         {
-            object[] ps  = (object[])msg.Data;
+            object[] ps = (object[])msg.Data;
             MethodInfo func = GetType().GetMethod((string)ps[0]);
             if (func != null)
             {
                 uint session = msg.Session;
                 SActActor target = msg.Source;
-                Response reply = (ok,a) =>
+                Response reply = (ok, a) =>
                 {
-                    if(ok){
+                    if (ok)
+                    {
                         SActor.Send(this, target, (int)SActMessageType.Response, session, a);
                     }
-                    else{
-                         SActor.Send(this, target, (int)SActMessageType.Error, session, null);
+                    else
+                    {
+                        SActor.Send(this, target, (int)SActMessageType.Error, session, null);
                     }
 
                 };
@@ -182,7 +189,7 @@ namespace SActor
                 {
                     func.Invoke(this, p);
                 }
-                catch ( Exception)
+                catch (Exception)
                 {
                     SActor.Send(this, target, (int)SActMessageType.Error, session, null);
                     throw;
@@ -190,7 +197,7 @@ namespace SActor
             }
             else
             {
-                throw new SActException(string.Format("invalid command {0}",ps[0]));
+                Log(string.Format("invalid command {0}", ps[0]));
             }
         }
 
@@ -206,7 +213,7 @@ namespace SActor
             }
             else
             {
-               throw new SActException(string.Format("invalid message {1}",ps[0]));
+                Log(string.Format("invalid message {1}", ps[0]));
             }
         }
 
@@ -222,7 +229,7 @@ namespace SActor
             }
             else
             {
-               throw new SActException(string.Format("invalid session {0},{1} to {2}",m.Session,m.Source.GetType().Name,this.GetType().Name));
+                Log(string.Format("invalid session {0},{1} to {2}", m.Session, m.Source.GetType().Name, this.GetType().Name));
             }
         }
 
@@ -243,7 +250,7 @@ namespace SActor
             }
             else
             {
-               throw new SActException(string.Format("invalid session {0},{1} to {2}",m.Session,m.Source.GetType().Name,this.GetType().Name));
+                Log(string.Format("invalid session {0},{1} to {2}", m.Session, m.Source.GetType().Name, this.GetType().Name));
             }
         }
 

@@ -348,7 +348,7 @@ namespace SActor
 
         public bool Connected()
         {
-            return _fd == null;
+            return _fd == null ? false: _fd.Connected;
         }
 
         public void Close()

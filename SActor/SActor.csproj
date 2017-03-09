@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MessageBox.cs" />
+    <Compile Include="RingBuffer.cs" />
     <Compile Include="SActActor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SActDispatcher.cs" />

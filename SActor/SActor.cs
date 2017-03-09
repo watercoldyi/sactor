@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
+using System.Collections.Concurrent;
 namespace SActor
 {
     public class SActor
@@ -11,7 +11,7 @@ namespace SActor
         static uint _threads = 4;
         internal static SActDispatcher _dispatcher;
         internal static SActActor _logger;
-        
+        static ConcurrentDictionary<string, SActActor> _nameMap = new ConcurrentDictionary<string, SActActor>();
 
         public static uint Threads
         {
@@ -72,6 +72,26 @@ namespace SActor
         public static void Log(string s)
         {
             Send(null, _logger, (int)SActMessageType.Message, 0, s);
+        }
+
+        public static void Log(Exception e)
+        {
+            Log(string.Format("error {0} {1}", e.Message, e.StackTrace));
+        }
+
+        public static void Name(string name, SActActor act)
+        {
+            _nameMap.TryAdd(name, act);            
+        }
+
+        public static SActActor Query(string name)
+        {
+            SActActor act;
+            if (_nameMap.TryGetValue(name, out act))
+            {
+                return act;
+            }
+            return null;
         }
     }
 }
