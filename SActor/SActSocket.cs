@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using System.Net.Sockets;
 using System.Net;
 using System.Diagnostics;
-using System.Collections.Concurrent;
 using System.Threading;
 using System.IO;
 namespace SActor
@@ -35,7 +34,7 @@ namespace SActor
   
 
         Socket _fd;
-        ConcurrentQueue<WBuffer> _wbuf = new ConcurrentQueue<WBuffer>();
+        Queue<WBuffer> _wbuf = new Queue<WBuffer>();
         SActSocketStatus _status;
         bool _hasPostAccept;
         bool _hasPostRead;
@@ -47,16 +46,27 @@ namespace SActor
         private SActSocket()
         {
             _status = SActSocketStatus.Invalid;
+            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
         }
 
         void CloseSocket()
         {
-            if (_fd != null)
+            lock (_wbuf)
             {
-                _fd.Close();
-                _fd = null;
+                if (_fd != null)
+                {
+                    _fd.Close();
+                    _fd = null;
+                    if (!_hasClose)
+                    {
+                        SActSocketMessage msg = new SActSocketMessage();
+                        msg.Socket = this;
+                        msg.Type = SActSocketMessageType.Close;
+                        ReportMessage(msg);
+                    }
+            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
+                }
             }
-            _hasClose = true;
         }
         void RetireSAEA(SocketAsyncEventArgs e)
         {
@@ -80,6 +90,7 @@ namespace SActor
             switch (e.LastOperation)
             {
                 case SocketAsyncOperation.Accept:
+            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
                     OnAccepted(e);
                     break;
                 case SocketAsyncOperation.Receive:
@@ -103,10 +114,7 @@ namespace SActor
             {
                 msg.Type = SActSocketMessageType.Open;
                 _status = SActSocketStatus.Connected;
-                if (_hasClose)
-                {
-                    CloseSocket();
-                }
+                DoRecv(null);
             }
             else
             {
@@ -139,7 +147,6 @@ namespace SActor
             else
             {
                 RetireSAEA(e);
-                CloseSocket();
             }
         }
 
@@ -152,42 +159,35 @@ namespace SActor
             {
                 msg.Type = SActSocketMessageType.Data;
                 msg.Data = e.Buffer;
+            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
                 msg.Size = e.BytesTransferred;
                 ReportMessage(msg);
                 if (!_hasClose)
                 {
                     DoRecv(e);
                 }
-                else if (!_hasPostSend)
+                else
                 {
                     RetireSAEA(e);
-                    CloseSocket();
                 }
             }
             else
             {
-                msg.Type = SActSocketMessageType.Close;
                 RetireSAEA(e);
                 CloseSocket();
-                ReportMessage(msg);
             }
         }
 
         void OnSended(SocketAsyncEventArgs e)
         {
             _hasPostSend = false;
-            if (_wbuf.Count > 0)
+            if (e.BytesTransferred <= 0 || e.SocketError != SocketError.Success)
             {
-                DoSend(e);
-            }
-            else if (_hasClose)
-            {
-                RetireSAEA(e);
                 CloseSocket();
             }
             else
             {
-                RetireSAEA(e);
+                DoSend(e);
             }
         }
 
@@ -197,14 +197,22 @@ namespace SActor
             {
                 return;
             }
+             _hasPostSend = true;
+             if (_wbuf.Count == 0)
+             {
+                 if (e != null)
+                 {
+                     RetireSAEA(e);
+                 }
+                 _hasPostSend = false;
+                 return;
+             }
             if (e == null)
             {
                 e = SActSAEAPool.Pop();
                 e.Completed += OnCompleted;
             }
-             _hasPostSend = true;
-            WBuffer buf;
-             _wbuf.TryDequeue(out buf);
+            WBuffer buf = _wbuf.Dequeue();
             if (buf.FilePath == null)
             {
                 e.SetBuffer(buf.Data, buf.Offset, buf.Size);
@@ -225,12 +233,12 @@ namespace SActor
             {
                 return;
             }
+            _hasPostAccept = true;
             if (e == null)
             {
                 e = SActSAEAPool.Pop();
                 e.Completed += OnCompleted;
             }
-            _hasPostAccept = true;
             if (!_fd.AcceptAsync(e))
             {
                 OnAccepted(e);
@@ -243,12 +251,12 @@ namespace SActor
             {
                 return;
             }
+            _hasPostRead = true;
             if (e == null)
             {
                 e = SActSAEAPool.Pop();
                 e.Completed += OnCompleted;
             }
-            _hasPostRead = true;
             e.SetBuffer(new byte[_recvSize], 0, (int)_recvSize);
             if (!_fd.ReceiveAsync(e))
             {
@@ -309,14 +317,12 @@ namespace SActor
 
         public void Start()
         {
-            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
             switch (_status)
             {
                 case SActSocketStatus.Listened:
                    DoAccept(null);
                    break;
                 case SActSocketStatus.Accepted:
-                case SActSocketStatus.Connected:
                    DoRecv(null);
                    break;
             }
@@ -327,7 +333,7 @@ namespace SActor
             Debug.Assert(data != null);
             WBuffer buf = new WBuffer() {Data = data,Offset=offset,Size =size };
             _wbuf.Enqueue(buf);
-            if (!_hasPostSend)
+            if (_status == SActSocketStatus.Connected)
             {
                 DoSend(null);
             }
@@ -353,13 +359,10 @@ namespace SActor
 
         public void Close()
         {
-            if (_status == SActSocketStatus.Accepted || (_status == SActSocketStatus.Listened && !_hasPostAccept))
+            _hasClose = true;
+            if (_wbuf.Count == 0)
             {
                 CloseSocket();
-            }
-            else
-            {
-                _hasClose = true;
             }
         }
 
