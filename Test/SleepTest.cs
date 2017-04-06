@@ -11,8 +11,9 @@ namespace Test
         protected  override void Init(object param)
         {
             Fork(async () => {
+                Log("sleeping");
                 await Sleep(1000);
-                Log("sleep");
+                Log("sleeped");
             });
         }
     }

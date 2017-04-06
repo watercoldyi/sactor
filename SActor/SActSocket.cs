@@ -46,7 +46,6 @@ namespace SActor
         private SActSocket()
         {
             _status = SActSocketStatus.Invalid;
-            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
         }
 
         void CloseSocket()
