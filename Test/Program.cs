@@ -11,15 +11,9 @@ namespace Test
     class Program
     {
 
-        static int work()
-        {
-            return Thread.CurrentThread.ManagedThreadId;
-        }
-
         static void Main(string[] args)
         {
             SActor.SActor.Init();
-            ConcurrentDictionary<int, int> coll = new ConcurrentDictionary<int, int>();
             SActor.SActor.Launch<InvokeTest>();
             SActor.SActor.Launch<SocketTest>();
             SActor.SActor.Launch<TimerTest>();

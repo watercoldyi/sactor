@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SActor", "SActor\SActor.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Test\Test.csproj", "{C169FF0F-C1D3-412B-B8CA-33F0F53A9FC8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SNet", "SSocket\SNet.csproj", "{FA575DD2-7877-474B-AAED-366824D8C09A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestLED", "TestLED\TestLED.csproj", "{5973AE52-C33D-4F04-942C-C119E0CDE755}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{C169FF0F-C1D3-412B-B8CA-33F0F53A9FC8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C169FF0F-C1D3-412B-B8CA-33F0F53A9FC8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C169FF0F-C1D3-412B-B8CA-33F0F53A9FC8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA575DD2-7877-474B-AAED-366824D8C09A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA575DD2-7877-474B-AAED-366824D8C09A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA575DD2-7877-474B-AAED-366824D8C09A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA575DD2-7877-474B-AAED-366824D8C09A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5973AE52-C33D-4F04-942C-C119E0CDE755}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5973AE52-C33D-4F04-942C-C119E0CDE755}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5973AE52-C33D-4F04-942C-C119E0CDE755}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5973AE52-C33D-4F04-942C-C119E0CDE755}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

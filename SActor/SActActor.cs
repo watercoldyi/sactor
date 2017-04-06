@@ -257,7 +257,7 @@ namespace SActor
         private void TimerHandler(SActMessage m)
         {
             Task t = _call[m.Session];
-            _timer.Remove(m.Session);
+            _call.Remove(m.Session);
             t.RunSynchronously();
         }
 

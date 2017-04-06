@@ -33,7 +33,7 @@ namespace Test
             try
             {
                 SActor.SActActor add = SActor.SActor.Launch<Adder>();
-                object r = await Call<object>(add, "Add", 10, 10);
+                int r = await Call<int>(add, "Add", 10, 10);
                 Log("10+10=" + r);
                 Send(add, "Say");
             }
