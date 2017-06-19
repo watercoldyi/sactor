@@ -47,6 +47,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="LineRRClient.cs" />
     <Compile Include="MessageBox.cs" />
     <Compile Include="RingBuffer.cs" />
     <Compile Include="SActActor.cs" />
