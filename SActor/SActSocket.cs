@@ -13,15 +13,6 @@ namespace SActor
     public class SActSocket
     {
 
-        class WBuffer
-        {
-            public int Offset { get; set; }
-            public byte[] Data { get; set; }
-
-            public int Size { get; set; }
-            public string FilePath  { get; set; }
-        }
-
         enum SActSocketStatus
         {
             Invalid,
@@ -31,39 +22,34 @@ namespace SActor
             Connecting
         }
 
-  
-
         Socket _fd;
-        Queue<WBuffer> _wbuf = new Queue<WBuffer>();
         SActSocketStatus _status;
-        bool _hasPostAccept;
-        bool _hasPostRead;
-        bool _hasPostSend;
         bool _hasClose;
+        bool _hasStart;
         uint _recvSize = 4096;
         SActActor _act;
+        int _nsend;
+        object _lock = new object();
 
         private SActSocket()
         {
             _status = SActSocketStatus.Invalid;
         }
 
-        void CloseSocket()
+        void CloseSocket( bool err)
         {
-            lock (_wbuf)
+            lock (_lock)
             {
-                if (_fd != null)
+                if (_fd == null) { return; }
+                _fd.Close();
+                _fd = null;
+                _status = SActSocketStatus.Invalid;
+                if (!err)
                 {
-                    _fd.Close();
-                    _fd = null;
-                    if (!_hasClose)
-                    {
-                        SActSocketMessage msg = new SActSocketMessage();
-                        msg.Socket = this;
-                        msg.Type = SActSocketMessageType.Close;
-                        ReportMessage(msg);
-                    }
-            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
+                    SActSocketMessage msg = new SActSocketMessage();
+                    msg.Type = SActSocketMessageType.Close;
+                    msg.Socket = this;
+                    ReportMessage(msg);
                 }
             }
         }
@@ -81,7 +67,7 @@ namespace SActor
             {
                 SActor.Send(null, _act, (int)SActMessageType.Socket, 0, msg);
             }
-            
+
         }
 
         void OnCompleted(object sender, SocketAsyncEventArgs e)
@@ -89,7 +75,6 @@ namespace SActor
             switch (e.LastOperation)
             {
                 case SocketAsyncOperation.Accept:
-            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
                     OnAccepted(e);
                     break;
                 case SocketAsyncOperation.Receive:
@@ -107,6 +92,11 @@ namespace SActor
         void OnConnected(SocketAsyncEventArgs e)
         {
             RetireSAEA(e);
+            if (_hasClose)
+            {
+                CloseSocket(true);
+                return;
+            }
             SActSocketMessage msg = new SActSocketMessage();
             msg.Socket = this;
             if (e.SocketError == SocketError.Success)
@@ -118,20 +108,32 @@ namespace SActor
             else
             {
                 msg.Type = SActSocketMessageType.Error;
-                msg.Error = e.SocketError.ToString();
-                CloseSocket();
+                msg.Error = "connect fail";
+                CloseSocket(true);
             }
             ReportMessage(msg);
         }
         void OnAccepted(SocketAsyncEventArgs e)
         {
-            _hasPostAccept = false;
+            if (e.SocketError != SocketError.Success)
+            {
+                RetireSAEA(e);
+                if (_status == SActSocketStatus.Invalid) { return; }
+                SActSocketMessage msg = new SActSocketMessage();
+                msg.Type = SActSocketMessageType.Error;
+                msg.Error = "accept err " + e.SocketError.ToString();
+                msg.Socket = this;
+                ReportMessage(msg);
+                return;
+            }
             Socket client = e.AcceptSocket;
             e.AcceptSocket = null;
             if (client != null)
             {
                 SActSocket s = new SActSocket();
                 s._fd = client;
+                s._fd.Blocking = false;
+                s._fd.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 s._status = SActSocketStatus.Accepted;
                 SActSocketMessage msg = new SActSocketMessage();
                 msg.Socket = this;
@@ -151,19 +153,22 @@ namespace SActor
 
         void OnRecved(SocketAsyncEventArgs e)
         {
-            _hasPostRead = false;
-            SActSocketMessage msg = new SActSocketMessage();
-            msg.Socket = this;
             if (e.BytesTransferred > 0 && e.SocketError == SocketError.Success)
             {
+                SActSocketMessage msg = new SActSocketMessage();
+                msg.Socket = this;
                 msg.Type = SActSocketMessageType.Data;
                 msg.Data = e.Buffer;
-            Debug.Assert(_status == SActSocketStatus.Listened || _status == SActSocketStatus.Accepted || _status == SActSocketStatus.Connected);
                 msg.Size = e.BytesTransferred;
                 ReportMessage(msg);
                 if (!_hasClose)
                 {
                     DoRecv(e);
+                }
+                else if (0 == _nsend)
+                {
+                    CloseSocket(true);
+                    RetireSAEA(e);
                 }
                 else
                 {
@@ -173,97 +178,85 @@ namespace SActor
             else
             {
                 RetireSAEA(e);
-                CloseSocket();
+                CloseSocket(false);
             }
         }
 
         void OnSended(SocketAsyncEventArgs e)
         {
-            _hasPostSend = false;
+            Interlocked.Decrement(ref _nsend);
             if (e.BytesTransferred <= 0 || e.SocketError != SocketError.Success)
             {
-                CloseSocket();
+                RetireSAEA(e);
+                CloseSocket(false);
             }
             else
             {
-                DoSend(e);
+                RetireSAEA(e);
+                if (_hasClose && _nsend == 0)
+                {
+                    CloseSocket(true);
+                }
             }
         }
 
-        void DoSend(SocketAsyncEventArgs e)
-        {
-            if (_hasPostSend)
-            {
-                return;
-            }
-             _hasPostSend = true;
-             if (_wbuf.Count == 0)
-             {
-                 if (e != null)
-                 {
-                     RetireSAEA(e);
-                 }
-                 _hasPostSend = false;
-                 return;
-             }
-            if (e == null)
-            {
-                e = SActSAEAPool.Pop();
-                e.Completed += OnCompleted;
-            }
-            WBuffer buf = _wbuf.Dequeue();
-            if (buf.FilePath == null)
-            {
-                e.SetBuffer(buf.Data, buf.Offset, buf.Size);
-            }
-            else
-            {
-                _fd.SendFile(buf.FilePath);
-            }
-            if (!_fd.SendAsync(e))
-            {
-                OnSended(e);
-            }
-        }
 
         void DoAccept(SocketAsyncEventArgs e)
         {
-            if (_hasPostAccept)
-            {
-                return;
-            }
-            _hasPostAccept = true;
             if (e == null)
             {
                 e = SActSAEAPool.Pop();
                 e.Completed += OnCompleted;
             }
-            if (!_fd.AcceptAsync(e))
+            try
             {
-                OnAccepted(e);
+                if (!_fd.AcceptAsync(e))
+                {
+                    OnAccepted(e);
+                }
+            }
+            catch (Exception ee)
+            {
+                RetireSAEA(e);
+                if (_status == SActSocketStatus.Invalid) { return; }
+                CloseSocket(true);
+                SActSocketMessage msg = new SActSocketMessage();
+                msg.Type = SActSocketMessageType.Error;
+                msg.Socket = this;
+                msg.Error = ee.Message;
+                ReportMessage(msg);
             }
         }
 
         void DoRecv(SocketAsyncEventArgs e)
         {
-            if (_hasPostRead)
-            {
-                return;
-            }
-            _hasPostRead = true;
             if (e == null)
             {
                 e = SActSAEAPool.Pop();
                 e.Completed += OnCompleted;
             }
+            e.SetBuffer(null, 0, 0);
             e.SetBuffer(new byte[_recvSize], 0, (int)_recvSize);
-            if (!_fd.ReceiveAsync(e))
+            try
             {
-                OnRecved(e);
+                if (!_fd.ReceiveAsync(e))
+                {
+                    OnRecved(e);
+                }
+            }
+            catch (Exception ee)
+            {
+                CloseSocket(true);
+                RetireSAEA(e);
+                SActSocketMessage msg = new SActSocketMessage();
+                msg.Error = ee.Message;
+                msg.Type = SActSocketMessageType.Error;
+                msg.Socket = this;
+                ReportMessage(msg);
             }
         }
 
-        public static SActSocket Listen(int port, int bck,SActActor act)
+        public static SActSocket Listen(int port, int bck, SActActor act)
         {
             try
             {
@@ -288,13 +281,16 @@ namespace SActor
                 SActSocket sock = new SActSocket();
                 IPEndPoint addr = new IPEndPoint(IPAddress.Parse(host), port);
                 Socket fd = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                fd.Blocking = false;
+                fd.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
                 SocketAsyncEventArgs e = SActSAEAPool.Pop();
                 e.RemoteEndPoint = addr;
                 e.Completed += sock.OnCompleted;
                 sock._fd = fd;
                 sock._status = SActSocketStatus.Connecting;
                 sock._act = act;
-                Task.Run(delegate {
+                Task.Run(delegate
+                {
                     Thread.Sleep(100);
                     if (!fd.ConnectAsync(e))
                     {
@@ -303,7 +299,7 @@ namespace SActor
                 });
                 return sock;
             }
-            catch ( Exception e)
+            catch (Exception e)
             {
                 throw new SActException(e.Message);
             }
@@ -316,52 +312,61 @@ namespace SActor
 
         public void Start()
         {
+            if (_hasStart) { return; }
+            _hasStart = true;
             switch (_status)
             {
                 case SActSocketStatus.Listened:
-                   DoAccept(null);
-                   break;
+                    DoAccept(null);
+                    break;
                 case SActSocketStatus.Accepted:
-                   DoRecv(null);
-                   break;
+                    _status = SActSocketStatus.Connected;
+                    DoRecv(null);
+                    break;
             }
         }
 
-        public void Send(byte[] data,int offset,int size)
+        public void Send(byte[] data, int offset, int size)
         {
-            Debug.Assert(data != null);
-            WBuffer buf = new WBuffer() {Data = data,Offset=offset,Size =size };
-            _wbuf.Enqueue(buf);
             if (_status == SActSocketStatus.Connected)
             {
-                DoSend(null);
-            }
-        }
-
-        public void SendFile(string path)
-        {
-            if (File.Exists(path))
-            {
-                WBuffer buf = new WBuffer() { FilePath = path };
-                _wbuf.Enqueue(buf);
-                if (!_hasPostSend)
+                SocketAsyncEventArgs e = null;
+                try
                 {
-                    DoSend(null);
+                    e = SActSAEAPool.Pop();
+                    e.Completed += OnCompleted;
+                    e.SetBuffer(data, offset, size);
+                    Interlocked.Increment(ref _nsend);
+                    if (!_fd.SendAsync(e))
+                    {
+                        OnSended(e);
+                    }
+                }
+                catch (Exception ee)
+                {
+                    Interlocked.Decrement(ref _nsend);
+                    RetireSAEA(e);
+                    CloseSocket(true);
+                    SActSocketMessage msg = new SActSocketMessage();
+                    msg.Error = ee.Message;
+                    msg.Type = SActSocketMessageType.Error;
+                    msg.Socket = this;
+                    ReportMessage(msg);
                 }
             }
         }
 
         public bool Connected()
         {
-            return _fd == null ? false: _fd.Connected;
+            return _fd == null ? false : _fd.Connected;
         }
 
         public void Close()
         {
             _hasClose = true;
-            if (_wbuf.Count == 0)
+            if (_nsend == 0)
             {
-                CloseSocket();
+                CloseSocket(true);
             }
         }
 

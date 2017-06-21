@@ -13,6 +13,7 @@ namespace Test
             SActor.SActSocket server = SActor.SActSocket.Listen(8000, 1024, this);
             server.Start();
             Log("listen 8000");
+            SActor.SActor.Launch<SocketClient>();
         }
 
         protected override void ProcessSocketMessage(SActor.SActSocketMessage msg)
@@ -21,24 +22,11 @@ namespace Test
             {
                 case SActor.SActSocketMessageType.Accept:
                     {
-                        Log("connect from "+msg.AcceptSocket.GetIP());
-                        msg.AcceptSocket.Bind(this);
-                        msg.AcceptSocket.Start();
+                        SActor.SActor.Launch<EchoAgent>(msg.AcceptSocket);
                     }
                     break;
                 case SActor.SActSocketMessageType.Close:
-                    {
-                        Log("client close " + msg.Socket.GetIP());
-                    }
-                    break;
-                case SActor.SActSocketMessageType.Data:
-                    {
-                        msg.Socket.Send(msg.Data,0,msg.Size);
-                    }
-                    break;
                 case SActor.SActSocketMessageType.Error:
-                    break;
-                case SActor.SActSocketMessageType.Open:
                     break;
             }
         }

@@ -47,6 +47,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Channel\RepCN.cs" />
+    <Compile Include="Channel\ReqCN.cs" />
     <Compile Include="LineRRClient.cs" />
     <Compile Include="MessageBox.cs" />
     <Compile Include="RingBuffer.cs" />

@@ -41,10 +41,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EchoAgent.cs" />
     <Compile Include="InvokeTest.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SleepTest.cs" />
+    <Compile Include="SocketClient.cs" />
     <Compile Include="SocketTest.cs" />
     <Compile Include="TimerTest.cs" />
   </ItemGroup>

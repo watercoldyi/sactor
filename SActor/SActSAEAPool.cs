@@ -5,11 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net.Sockets;
 using System.Collections.Concurrent;
+using System.Threading;
 namespace SActor
 {
     internal class SActSAEAPool
     {
         static ConcurrentQueue<SocketAsyncEventArgs> _pool = new ConcurrentQueue<SocketAsyncEventArgs>();
+        static int _n;
 
        public static void Init(uint count)
         {
@@ -37,6 +39,7 @@ namespace SActor
            }
            else
            {
+               Console.WriteLine(Interlocked.Increment(ref _n));
                return new SocketAsyncEventArgs();
            }
        }

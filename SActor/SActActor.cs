@@ -12,7 +12,7 @@ namespace SActor
 
     public abstract class SActActor
     {
-        protected delegate void SActMessageHandler(SActMessage msg);
+        public delegate void SActMessageHandler(SActMessage msg);
         public delegate void Response(bool ok, object d);
 
         bool _exit;
@@ -96,12 +96,12 @@ namespace SActor
             return TimeOut(ms, () => { });
         }
 
-        protected void Log(string s)
+        public void Log(string s)
         {
             SActor.Send(this, SActor._logger, (int)SActMessageType.Message, 0, s);
         }
 
-        protected void Log(Exception e)
+        public void Log(Exception e)
         {
             Log(string.Format("{0}{1}", e.Message, e.StackTrace));
         }
@@ -148,7 +148,7 @@ namespace SActor
             return MsgBox.MessageCount();
         }
 
-        protected void SetMessageHandler(int port, SActMessageHandler handler)
+        public void SetMessageHandler(int port, SActMessageHandler handler)
         {
             if (_handlers.ContainsKey(port))
             {

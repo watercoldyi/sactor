@@ -11,14 +11,14 @@ namespace SActor
     /// </summary>
     public class LineRRClient
     {
-        class Request
+        class Req
         {
             public byte[] data;
             public Task task;
         }
 
         public delegate object UnPack(RingBuffer buf);
-        Queue<Request> _reqs = new Queue<Request>();
+        Queue<Req> _reqs = new Queue<Req>();
         UnPack _unpack;
         SActSocket _sock;
         object _result;
@@ -90,7 +90,7 @@ namespace SActor
             }
             else
             {
-                Request req = new Request();
+                Req req = new Req();
                 req.data = data;
                 req.task = t;
                 _reqs.Enqueue(req);
