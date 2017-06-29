@@ -103,6 +103,7 @@ namespace SActor
             {
                 msg.Type = SActSocketMessageType.Open;
                 _status = SActSocketStatus.Connected;
+                ReportMessage(msg);
                 DoRecv(null);
             }
             else
@@ -110,8 +111,8 @@ namespace SActor
                 msg.Type = SActSocketMessageType.Error;
                 msg.Error = "connect fail";
                 CloseSocket(true);
+                ReportMessage(msg);
             }
-            ReportMessage(msg);
         }
         void OnAccepted(SocketAsyncEventArgs e)
         {
