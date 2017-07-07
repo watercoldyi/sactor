@@ -10,25 +10,13 @@ namespace Test
     {
         protected override void Init(object param)
         {
-            SActor.SActSocket server = SActor.SActSocket.Listen(8000, 1024, this);
-            server.Start();
+            SActor.SActSocket server = SocketListen(8000, 1024);
+            SocketStart(server, (c, ip) => {
+                SActor.SActor.Launch<EchoAgent>(c);
+            });
             Log("listen 8000");
-            SActor.SActor.Launch<SocketClient>();
+            //SActor.SActor.Launch<SocketClient>();
         }
 
-        protected override void ProcessSocketMessage(SActor.SActSocketMessage msg)
-        {
-            switch (msg.Type)
-            {
-                case SActor.SActSocketMessageType.Accept:
-                    {
-                        SActor.SActor.Launch<EchoAgent>(msg.AcceptSocket);
-                    }
-                    break;
-                case SActor.SActSocketMessageType.Close:
-                case SActor.SActSocketMessageType.Error:
-                    break;
-            }
-        }
     }
 }

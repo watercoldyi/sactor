@@ -12,6 +12,15 @@ namespace SActor
 
     public abstract class SActActor
     {
+        class SocketCtx
+        {
+            public RingBuffer rbuf;
+            public int nread;
+            public Action<SActSocket, string> acceptHandler;
+            public Task wait;
+            public SActSocket socket;
+        }
+
         public delegate void SActMessageHandler(SActMessage msg);
         public delegate void Response(bool ok, object d);
 
@@ -23,6 +32,7 @@ namespace SActor
         Queue<Action> _task = new Queue<Action>();
         object _callResult;
         bool _callOK;
+        Dictionary<SActSocket, SocketCtx> _socketCtx = new Dictionary<SActSocket, SocketCtx>();
 
         public SActActor()
         {
@@ -160,8 +170,6 @@ namespace SActor
             }
         }
 
-        protected virtual void ProcessSocketMessage(SActSocketMessage msg) { }
-
         private void CommandHandler(SActMessage msg)
         {
             object[] ps = (object[])msg.Data;
@@ -267,14 +275,144 @@ namespace SActor
             Log("launch");
         }
 
-        private void SocketHandler(SActMessage m)
-        {
-            ProcessSocketMessage((SActSocketMessage)m.Data);
-        }
+   
 
         public bool HasExit()
         {
             return _exit;
         }
+
+        protected SActSocket SocketListen(int port, int bck)
+        {
+            var socket = SActSocket.Listen(port, bck, this);
+            SocketCtx ctx = new SocketCtx();
+            ctx.socket = socket;
+            _socketCtx[socket] = ctx;
+            return socket;
+        }
+
+        protected Task<SActSocket> SocketConnect(string ip, int port)
+        {
+            var socket = SActSocket.Connect(ip, port, this);
+            var ctx = new SocketCtx();
+            ctx.socket = socket;
+            ctx.rbuf = new RingBuffer(256);
+            _socketCtx[socket] = ctx;
+            Task<SActSocket> task = new Task<SActSocket>(() => {
+                return ctx.socket;
+            });
+            ctx.wait = task;
+            return task;
+        }
+
+        protected Task<byte[]> SocketRead(SActSocket socket,int n)
+        {
+            var ctx = _socketCtx[socket];
+            Task<byte[]> task = new Task<byte[]>(() => {
+                if (ctx.socket == null) { return null; }
+                byte[] buf = new byte[n];
+                ctx.rbuf.Read(buf, 0, n);
+                return buf;
+            });
+            if (ctx.rbuf.Length() >= n)
+            {
+               Fork(()=>{ task.RunSynchronously();});
+            }
+            else
+            {
+                ctx.wait = task;
+                ctx.nread = n;
+            }
+            return task;
+        }
+
+        protected void SocketStart(SActSocket socket, Action<SActSocket, string> accept = null)
+        {
+            if (_socketCtx.ContainsKey(socket))
+            {
+                if (socket.IsServer())
+                {
+                    _socketCtx[socket].acceptHandler = accept;
+                }
+                socket.Start();
+            }
+        }
+
+        protected void SocketBind(SActSocket socket)
+        {
+            if (socket.Actor != this)
+            {
+                socket.Bind(this);
+                var ctx = new SocketCtx();
+                ctx.rbuf = new RingBuffer(256);
+                ctx.socket = socket;
+                _socketCtx[socket] = ctx;
+            }
+        }
+
+        void ProcessAccept(SActSocketMessage m)
+        {
+            SocketCtx ctx = _socketCtx[m.Socket];
+            ctx.acceptHandler(m.AcceptSocket, m.AcceptSocket.GetIP());
+        }
+
+        void ProcessOpen(SActSocketMessage m)
+        {
+            SocketCtx ctx = _socketCtx[m.Socket];
+            Task wait = ctx.wait;
+            ctx.wait = null;
+            if (wait != null)
+            {
+                wait.RunSynchronously();
+            }
+        }
+
+        void ProcessClose(SActSocketMessage m)
+        {
+            SocketCtx ctx = _socketCtx[m.Socket];
+            ctx.socket = null;
+            Task wait = ctx.wait;
+            ctx.wait = null;
+            if (wait != null)
+            {
+                wait.RunSynchronously();
+            }
+            _socketCtx.Remove(m.Socket);
+        }
+
+        void ProcessData(SActSocketMessage m)
+        {
+            SocketCtx ctx = _socketCtx[m.Socket];
+            ctx.rbuf.Write(m.Data, 0, m.Size);
+            if (ctx.wait != null && ctx.rbuf.Length() >= ctx.nread)
+            {
+                Task wait = ctx.wait;
+                ctx.wait = null;
+                ctx.nread = 0;
+                wait.RunSynchronously();
+            }
+        }
+        private void SocketHandler(SActMessage m)
+        {
+            SActSocketMessage msg = m.Data as SActSocketMessage;
+            if (!_socketCtx.ContainsKey(msg.Socket)) { return; }
+            switch (msg.Type)
+            {
+                case SActSocketMessageType.Accept:
+                    ProcessAccept(msg);
+                    break;
+                case SActSocketMessageType.Close:
+                case SActSocketMessageType.Error:
+                    ProcessClose(msg);
+                    break;
+                case SActSocketMessageType.Data:
+                    ProcessData(msg);
+                    break;
+                case SActSocketMessageType.Open:
+                    ProcessOpen(msg);
+                    break;
+            }
+        }
+
     }
 }

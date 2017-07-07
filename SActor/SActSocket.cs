@@ -36,6 +36,13 @@ namespace SActor
             _status = SActSocketStatus.Invalid;
         }
 
+        public bool IsServer()
+        {
+            return _status == SActSocketStatus.Listened;
+        }
+
+        public SActActor Actor { get { return _act; } }
+
         void CloseSocket( bool err)
         {
             lock (_lock)

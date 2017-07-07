@@ -39,7 +39,6 @@ namespace SActor
            }
            else
            {
-               Console.WriteLine(Interlocked.Increment(ref _n));
                return new SocketAsyncEventArgs();
            }
        }

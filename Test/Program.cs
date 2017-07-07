@@ -17,7 +17,7 @@ namespace Test
             SActor.SActor.Init();
             SActor.SActor.Launch<InvokeTest>();
             SActor.SActor.Launch<SocketTest>();
-            SActor.SActor.Launch<TimerTest>();
+            //SActor.SActor.Launch<TimerTest>();
             SActor.SActor.Launch<SleepTest>();
             Console.ReadLine();
         }
