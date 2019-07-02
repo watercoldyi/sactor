@@ -13,7 +13,6 @@ namespace SActor
         Request,
         Response,
         Timer,
-        Socket,
         Exit,
         Init,
         Error

@@ -16,6 +16,7 @@ namespace SActor
             {
                 Thread t = new Thread(new ThreadStart(Worker));
                 t.IsBackground = true;
+                t.Name = "SActorWorker";
                 t.Start();
             }
         }

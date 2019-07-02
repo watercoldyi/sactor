@@ -35,7 +35,7 @@ namespace SActor
         {
             _dispatcher = new SActDispatcher(_threads);
             _logger = Launch<SActLogger>();
-            SActSAEAPool.Init(12);
+            Launch<InvokeAdapter>();
         }
 
         public static void Send(SActActor source, SActActor target, int port, uint session, object data)

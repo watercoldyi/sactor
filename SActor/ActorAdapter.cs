@@ -44,5 +44,19 @@ namespace SActor
             }
             Send(act, cmd, p);
         }
+
+        public static Task<T> Call<T>(string name,string cmd,params object[] p)
+        {
+            InvokeAdapter.Waiter wait = new InvokeAdapter.Waiter();
+            wait.T = new Task<T>(()=> {
+                if (wait.IsError) { throw new SActException("call fail");}
+                return (T)wait.Result;
+            });
+            wait.Cmd = cmd;
+            wait.Act = SActor.Query(name);
+            wait.P = p;
+            SActor.Send(null, SActor.Query(nameof(InvokeAdapter)), (int)SActMessageType.Message, 0,new object[] {"Invoke",wait});
+            return (Task<T>)wait.T;
+        }
     }
 }

@@ -40,6 +40,7 @@ namespace Test
             catch (Exception e)
             {
                 Log(e.Message);
+                throw;
             }
         }
     }
